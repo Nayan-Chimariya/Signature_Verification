@@ -9,30 +9,43 @@ OUTPUT_DIR = "processed_dataset_npy"
 IMG_SIZE = (128, 128)  
 
 def create_dir(dir_path):
+    """Creates a directory if it doesn't exist."""
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
 def preprocess_image(image_path):
+    """
+    Preprocesses an image by cleaning noise, resizing, and normalizing.
+    Returns the processed image as a float32 array in [0, 1].
+    """
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Could not read image {image_path}")
     
-    # Convert to grayscale 
+    # Converting to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # Resize image to target size
+    # Resizing image to target size
     resized = cv2.resize(gray, IMG_SIZE, interpolation=cv2.INTER_AREA)
     
-    # Normalize the image to [0, 1]
-    normalized = resized.astype("float32") / 255.0
+    # Creating a binary mask for rich strokes
+    _, binary_mask = cv2.threshold(resized, 240, 255, cv2.THRESH_BINARY)  
     
-    # Enhance contrast using histogram equalization
-    equalized = cv2.equalizeHist((normalized * 255).astype("uint8"))
-    processed = equalized.astype("float32") / 255.0
+    # A white canvas
+    blank_canvas = np.ones_like(resized, dtype=np.uint8) * 255 
     
-    return processed
+    # Transfering only rich strokes to the blank canvas
+    blank_canvas[binary_mask == 0] = resized[binary_mask == 0]
+    
+    # Normalize the resulting canvas to range [0, 1]
+    normalized = blank_canvas.astype("float32") / 255.0
+    
+    return normalized
 
 def process_dataset(input_dir, output_dir):
+    """
+    Processes all images in the dataset, saves the processed images as .npy files.
+    """
     create_dir(output_dir)
     
     for class_dir in os.listdir(input_dir):
